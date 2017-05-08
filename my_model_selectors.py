@@ -3,6 +3,7 @@ import statistics
 import warnings
 
 import numpy as np
+import operator
 from hmmlearn.hmm import GaussianHMM
 from sklearn.model_selection import KFold
 from asl_utils import combine_sequences
@@ -82,7 +83,7 @@ class SelectorBIC(ModelSelector):
         # TODO implement model selection based on BIC scores
 
         BICs = {}
-        for n_components in range(self.min_n_components, self.max_n_components):
+        for n_components in range(self.min_n_components, self.max_n_components + 1):
             try:
                 model = self.base_model(n_components)
                 N = len(self.X) # number of datapoints (features)
@@ -93,12 +94,11 @@ class SelectorBIC(ModelSelector):
             except:
                 None
         # minimize BIC
-        import operator
         return min(BICs.items(), key=operator.itemgetter(0))[1]
 
 class SelectorDIC(ModelSelector):
     ''' select best model based on Discriminative Information Criterion
-
+                                            
     Biem, Alain. "A model selection criterion for classification: Application to hmm topology optimization."
     Document Analysis and Recognition, 2003. Proceedings. Seventh International Conference on. IEEE, 2003.
     http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.58.6208&rep=rep1&type=pdf
@@ -109,8 +109,31 @@ class SelectorDIC(ModelSelector):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
         # TODO implement model selection based on DIC scores
-        raise NotImplementedError
+        DICs = {}
+        for n_components in range(self.min_n_components, self.max_n_components + 1):
+            model = self.base_model(n_components)
+            try:
+                logL = model.score(self.X, self.lengths)
+            except:
+                continue
 
+            anti_evidences = []
+
+            # sum log(P(X(all except current word)))
+            for word, (X, lengths) in self.hwords.items():
+                if word == self.this_word:
+                    continue
+                # evidence for competing class
+                try:
+                    anti_evidences.append(model.score(X, lengths))
+                except:
+                    None
+
+            DIC = logL - np.average(anti_evidences)
+            DICs[DIC] = model
+
+        # maximize DIC
+        return max(DICs.items(), key= operator.itemgetter(0))[1]
 
 class SelectorCV(ModelSelector):
     ''' select best model based on average log Likelihood of cross-validation folds
@@ -126,7 +149,7 @@ class SelectorCV(ModelSelector):
         
         averages = {}
         # try to find best n_components 
-        for n_components in range(self.min_n_components, self.max_n_components): 
+        for n_components in range(self.min_n_components, self.max_n_components + 1):
             k = min(3, len(self.sequences))
             split_method = KFold(k)
             score_set = []
@@ -151,7 +174,6 @@ class SelectorCV(ModelSelector):
             self.print("Scores for {} n_components is {}. K-Folds {}. Average {} for {} n_components\n".format(n_components, score_set, k, avg, n_components))
 
         # find max (score > average)
-        import operator
         best_n_component_by_score = max(averages.items(), key=operator.itemgetter(0))[1]
         self.X, self.lengths = self.hwords[self.this_word]
         return self.base_model(best_n_component_by_score)
