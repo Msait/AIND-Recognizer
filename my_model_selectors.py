@@ -79,14 +79,22 @@ class SelectorBIC(ModelSelector):
         :return: GaussianHMM object
         """
         warnings.filterwarnings("ignore", category=DeprecationWarning)
-        # N = len(self.sequences) # number of datapoints
-        # p = self.n_constant * (self.n_constant - 1) + 2 * len(self. # number of parameters n*(n-1) + 2*d*n
-        # BIC = -2* np.log10(L) + p* np.log10(N)
-
         # TODO implement model selection based on BIC scores
-        raise NotImplementedError
-        
 
+        BICs = {}
+        for n_components in range(self.min_n_components, self.max_n_components):
+            try:
+                model = self.base_model(n_components)
+                N = len(self.X) # number of datapoints (features)
+                p = n_components * (n_components - 1) + 2 * N * n_components # number of parameters: n*(n-1) + 2*d*n
+                logL = model.score(self.X, self.lengths)
+                BIC = -2 * logL + p * np.log10(N)
+                BICs[BIC] = model
+            except:
+                None
+        # minimize BIC
+        import operator
+        return min(BICs.items(), key=operator.itemgetter(0))[1]
 
 class SelectorDIC(ModelSelector):
     ''' select best model based on Discriminative Information Criterion
@@ -137,11 +145,10 @@ class SelectorCV(ModelSelector):
                 except:
                     None
             
-            self.print("Scores for {} n_components is {}. K-Folds {}".format(n_components, score_set, k))
             # find average
             avg = np.average(score_set)
             averages[avg] = n_components
-            self.print("Average {} for {} n_components\n".format(avg, n_components))
+            self.print("Scores for {} n_components is {}. K-Folds {}. Average {} for {} n_components\n".format(n_components, score_set, k, avg, n_components))
 
         # find max (score > average)
         import operator
