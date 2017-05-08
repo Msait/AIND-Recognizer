@@ -142,6 +142,7 @@ class SelectorCV(ModelSelector):
 
     def select(self):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
+        warnings.filterwarnings("ignore", category=RuntimeWarning)
 
         # TODO implement model selection using CV
         # raise NotImplementedError
