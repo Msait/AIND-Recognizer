@@ -31,6 +31,10 @@ class ModelSelector(object):
     def select(self):
         raise NotImplementedError
 
+    def print(self, s):
+        if self.verbose:
+            print(s)
+
     def base_model(self, num_states):
         # with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -75,9 +79,13 @@ class SelectorBIC(ModelSelector):
         :return: GaussianHMM object
         """
         warnings.filterwarnings("ignore", category=DeprecationWarning)
+        # N = len(self.sequences) # number of datapoints
+        # p = self.n_constant * (self.n_constant - 1) + 2 * len(self. # number of parameters n*(n-1) + 2*d*n
+        # BIC = -2* np.log10(L) + p* np.log10(N)
 
         # TODO implement model selection based on BIC scores
         raise NotImplementedError
+        
 
 
 class SelectorDIC(ModelSelector):
@@ -105,4 +113,38 @@ class SelectorCV(ModelSelector):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
         # TODO implement model selection using CV
-        raise NotImplementedError
+        # raise NotImplementedError
+        # max of loop [min_n_components .. man_n_components] -> logL
+        
+        averages = {}
+        # try to find best n_components 
+        for n_components in range(self.min_n_components, self.max_n_components): 
+            k = min(3, len(self.sequences))
+            split_method = KFold(k)
+            score_set = []
+        
+            # split data on folds
+            for cv_train_idx, cv_test_idx in split_method.split(self.sequences):
+                try:
+                    self.print("Train fold indices:{} Test fold indices:{}".format(cv_train_idx, cv_test_idx))
+                    test_X, test_lengths = combine_sequences(cv_test_idx, self.sequences)
+                    train_X, train_lengths = combine_sequences(cv_train_idx, self.sequences)
+                    self.X = train_X
+                    self.lengths = train_lengths
+                    model = self.base_model(n_components)
+                    # compute score`
+                    score_set.append(model.score(test_X, test_lengths))
+                except:
+                    None
+            
+            self.print("Scores for {} n_components is {}. K-Folds {}".format(n_components, score_set, k))
+            # find average
+            avg = np.average(score_set)
+            averages[avg] = n_components
+            self.print("Average {} for {} n_components\n".format(avg, n_components))
+
+        # find max (score > average)
+        import operator
+        best_n_component_by_score = max(averages.items(), key=operator.itemgetter(0))[1]
+        self.X, self.lengths = self.hwords[self.this_word]
+        return self.base_model(best_n_component_by_score)
