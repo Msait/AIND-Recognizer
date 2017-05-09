@@ -94,6 +94,8 @@ class SelectorBIC(ModelSelector):
             except:
                 None
         # minimize BIC
+        if not BICs:
+            return self.base_model(self.n_constant)
         return min(BICs.items(), key=operator.itemgetter(0))[1]
 
 class SelectorDIC(ModelSelector):
@@ -133,6 +135,8 @@ class SelectorDIC(ModelSelector):
             DICs[DIC] = model
 
         # maximize DIC
+        if not DICs:
+            return self.base_model(self.n_constant)
         return max(DICs.items(), key= operator.itemgetter(0))[1]
 
 class SelectorCV(ModelSelector):
@@ -152,23 +156,32 @@ class SelectorCV(ModelSelector):
         # try to find best n_components 
         for n_components in range(self.min_n_components, self.max_n_components + 1):
             k = min(3, len(self.sequences))
-            split_method = KFold(k)
+
             score_set = []
-        
-            # split data on folds
-            for cv_train_idx, cv_test_idx in split_method.split(self.sequences):
+            model = self.base_model(n_components)
+
+            if k < 2:
                 try:
-                    self.print("Train fold indices:{} Test fold indices:{}".format(cv_train_idx, cv_test_idx))
-                    test_X, test_lengths = combine_sequences(cv_test_idx, self.sequences)
-                    train_X, train_lengths = combine_sequences(cv_train_idx, self.sequences)
-                    self.X = train_X
-                    self.lengths = train_lengths
-                    model = self.base_model(n_components)
-                    # compute score`
-                    score_set.append(model.score(test_X, test_lengths))
+                    score_set.append(np.average(model.score(self.X, self.lengths)))
                 except:
-                    None
-            
+                    # model is None
+                    pass
+            else:
+                split_method = KFold(k)
+
+                # split data on folds
+                for cv_train_idx, cv_test_idx in split_method.split(self.sequences):
+                    try:
+                        self.print("Train fold indices:{} Test fold indices:{}".format(cv_train_idx, cv_test_idx))
+                        test_X, test_lengths = combine_sequences(cv_test_idx, self.sequences)
+                        train_X, train_lengths = combine_sequences(cv_train_idx, self.sequences)
+                        self.X = train_X
+                        self.lengths = train_lengths
+                        # compute score`
+                        score_set.append(model.score(test_X, test_lengths))
+                    except:
+                        None
+
             # find average
             avg = np.average(score_set)
             averages[avg] = n_components
