@@ -87,7 +87,7 @@ class SelectorBIC(ModelSelector):
             try:
                 model = self.base_model(n_components)
                 N = len(self.X) # number of datapoints (features)
-                p = n_components * (n_components - 1) + 2 * N * n_components # number of parameters: n*(n-1) + 2*d*n
+                p = n_components * n_components + 2 * N * n_components - 1 # number of parameters: n*n + 2*d*n -1
                 logL = model.score(self.X, self.lengths)
                 BIC = -2 * logL + p * np.log(N)
                 BICs[BIC] = model
